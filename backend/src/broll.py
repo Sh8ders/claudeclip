@@ -668,7 +668,12 @@ async def broll_overlays_for(placements: Iterable[Dict[str, Any]]) -> List[Dict[
     """Renderer overlays for stored placements, re-downloading evicted footage."""
     overlays = []
     for placement in placements or []:
-        path = await ensure_broll_file(placement)
+        if placement.get("provider") == "local":
+            # Footage from a local folder (Claude-native mode): used in place.
+            local = Path(str(placement.get("local_path") or ""))
+            path = local if local.is_file() else None
+        else:
+            path = await ensure_broll_file(placement)
         if path is None:
             logger.warning("B-roll footage %s unavailable; skipping it", placement.get("pexels_id"))
             continue

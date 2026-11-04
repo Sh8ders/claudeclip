@@ -37,6 +37,13 @@ dependencies = [
 [project.optional-dependencies]
 cpu = ["torch==2.11.0"]
 cuda = ["torch==2.11.0"]
+# Claude-native mode (`clipper`): faster local Whisper on CPU.
+native = ["faster-whisper>=1.2.1"]
+# Claude-native mode on Apple Silicon: Whisper on the GPU through MLX.
+mlx = ["mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[project.scripts]
+clipper = "clipper_entry:main"
 
 [dependency-groups]
 dev = [
