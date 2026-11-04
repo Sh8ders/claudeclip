@@ -152,10 +152,23 @@ planned through the editor renderer (`render_document`, which supports
 ## Milestones / progress
 
 - [x] Read code, baseline tests green, plan written
-- [ ] M1 Import hygiene + prompts as files (+ tests, suite green)
-- [ ] M2 Whisper backends (faster/mlx) + extras
-- [ ] M3 `clipper prepare` / `schema` / `validate` (+ tests)
-- [ ] M4 `clipper render` + B-roll (local/Pexels) + `broll-context` (+ ffprobe tests)
-- [ ] M5 Skill `.claude/skills/clip/SKILL.md`, README, CLAUDE.md section
-- [ ] M6 Purity test (no AI SDK imports), full suite, PR
-- [ ] Phase 2: `edit-context` / `edit-apply` + `/clip-edit` skill (+ square format)
+- [x] M1 Import hygiene + prompts as files (`test_prompt_files.py`)
+- [x] M2 Whisper backends (faster/mlx) + `native`/`mlx` extras. `uv.lock` NOT
+      regenerated (pytorch index blocked here); `uv sync` re-locks on the Mac.
+- [x] M3 `clipper prepare` / `schema` / `validate` (`test_native_pipeline.py`).
+      `prepare --transcript-json` imports an existing Whisper JSON (used by tests).
+- [x] M4 `clipper render` + `broll-context` + local/Pexels B-roll
+      (`test_native_purity.py` renders end to end, `test_native_transcription.py`)
+- [x] M5 Skill `.claude/skills/clip/SKILL.md`, `docs/claude-native/README.md`, CLAUDE.md section
+- [x] M6 Purity test (imports + network blocked in a subprocess), full suite
+      1678 passed / 1 skipped
+- [ ] PR against Sh8ders/claudeclip main
+- [ ] Phase 2: `edit-context` / `edit-apply` (`src/native/edit.py`) + `/clip-edit`
+      skill + `render --format square` (studio renderer, face-anchored crop)
+
+## Verified by hand (sandbox)
+
+- Fixture render: 1080x1920 H.264/AAC, 30.0 s, hook title + word captions
+  burned (no face in the test pattern -> blurred-fit layout).
+- Guard negative control: importing `src.ai` and connecting to
+  api.anthropic.com are both caught by the purity guard.
