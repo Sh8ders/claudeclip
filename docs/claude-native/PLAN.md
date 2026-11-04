@@ -138,9 +138,9 @@ validates them. Footage: Pexels if `PEXELS_API_KEY` is set, else a local
 ### Formats
 
 The clip renderer supports `vertical`, `vertical_fit`, `vertical_pan`,
-`vertical_split`, `original`. It has no `square`; `--format square` is
-planned through the editor renderer (`render_document`, which supports
-`framing.aspect = square`) in phase 2.
+`vertical_split`, `original`. `--format square` renders through the studio
+renderer (`render_document`, `framing.aspect = square`) with the horizontal
+anchor from `detect_optimal_crop_region(target_ratio=1)`.
 
 ### Trade-offs
 
@@ -162,9 +162,11 @@ planned through the editor renderer (`render_document`, which supports
 - [x] M5 Skill `.claude/skills/clip/SKILL.md`, `docs/claude-native/README.md`, CLAUDE.md section
 - [x] M6 Purity test (imports + network blocked in a subprocess), full suite
       1678 passed / 1 skipped
-- [ ] PR against Sh8ders/claudeclip main
-- [ ] Phase 2: `edit-context` / `edit-apply` (`src/native/edit.py`) + `/clip-edit`
-      skill + `render --format square` (studio renderer, face-anchored crop)
+- [x] PR against Sh8ders/claudeclip main: https://github.com/Sh8ders/claudeclip/pull/1
+- [x] Phase 2: `edit-context` / `edit-apply` (`src/native/edit.py`) + `/clip-edit`
+      skill + `render --format square` (studio renderer, face-anchored crop).
+      Drafts live in `runs/<name>/edits/clip_NN/` (draft.json, history/);
+      covered by the guarded end-to-end test in `test_native_purity.py`.
 
 ## Verified by hand (sandbox)
 

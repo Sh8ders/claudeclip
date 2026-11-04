@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--font", default=None, help="Caption font family (`clipper list fonts`)")
     render.add_argument("--font-size", type=int, default=None)
     render.add_argument("--font-color", default=None, help="#RRGGBB")
-    render.add_argument("--format", default="vertical", choices=("vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"))
+    render.add_argument("--format", default="vertical", choices=("vertical", "vertical_fit", "vertical_pan", "vertical_split", "original", "square"), help="square renders through the studio renderer with a face-anchored crop")
     render.add_argument("--no-subtitles", action="store_true", help="No burned captions (the hook title stays)")
     render.add_argument("--broll", action="store_true", help="Add B-roll from broll.json (Pexels if PEXELS_API_KEY, else --broll-dir)")
     render.add_argument("--broll-dir", type=Path, default=None, help="Local footage folder (default: <repo>/broll, or $CLIPPER_BROLL_DIR)")
@@ -98,6 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     edit_context.add_argument("run")
     edit_context.add_argument("clip", type=int)
     edit_context.add_argument("instruction", nargs="?", default="", help="The edit request")
+    edit_context.add_argument("--reset", action="store_true", help="Discard earlier edits and start from the rendered clip")
 
     edit_apply = sub.add_parser("edit-apply", help="Apply an EditPlan (ops.json) to one clip and render it")
     edit_apply.add_argument("run")
@@ -237,7 +238,7 @@ def run_command(args: argparse.Namespace) -> int:
     if args.command == "edit-context":
         from .edit import edit_context
 
-        _print(asyncio.run(edit_context(run, args.clip, args.instruction)))
+        _print(asyncio.run(edit_context(run, args.clip, args.instruction, reset=args.reset)))
         return 0
 
     if args.command == "edit-apply":

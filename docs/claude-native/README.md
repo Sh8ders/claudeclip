@@ -130,6 +130,19 @@ filename words, so `broll/hands-typing-laptop.mp4` matches the query
   tasks. `prepare --no-cut-pauses --no-remove-fillers` keeps them.
 - `TEMP_DIR` defaults to `runs/.cache` (YouTube downloads, B-roll cache).
 
+## Editing a clip (`/clip-edit`)
+
+`/clip-edit <name> <clip#> "<request>"` is the studio's "AI edit" with
+Claude as the model. `clipper edit-context` builds the studio draft for the
+rendered clip and prints the studio's own prompt plus the draft (segments,
+caption style, framing, word ids with timings). Claude writes an `EditPlan`
+(`clipper schema edit`), and `clipper edit-apply` applies it with the
+studio's validation (`apply_plan`: values clamped, impossible steps skipped
+and listed in `notes`) and renders `runs/<name>/edits/clip_NN_vR.mp4`.
+Requests build on the latest revision; `--reset` starts over. Local-folder
+B-roll is not carried into edit drafts (the studio only stores Pexels
+footage), and adding B-roll in an edit needs `PEXELS_API_KEY`.
+
 ## Known trade-offs
 
 - **No speaker labels.** Whisper does not diarize, so every word has
@@ -141,8 +154,9 @@ filename words, so `broll/hands-typing-laptop.mp4` matches the query
   AssemblyAI transcript of the same video.
 - **Formats:** the clip renderer supports `vertical` (default; face-tracked,
   blurred fill when no face is found), `vertical_fit`, `vertical_pan`,
-  `vertical_split` and `original`. `--format square` goes through the
-  editor renderer (centre framing, no face tracking).
+  `vertical_split` and `original`. `--format square` (1080x1080) goes
+  through the studio renderer with one face-anchored crop per clip (no
+  tracking pan within a clip).
 - **Speed:** rendering is CPU-bound, roughly real time per clip.
 
 ## Try it on a synthetic fixture

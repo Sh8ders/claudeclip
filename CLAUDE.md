@@ -393,7 +393,8 @@ pipeline with Claude Code as the AI, so no LLM/AssemblyAI keys. `clipper` downlo
 transcribes with local Whisper (`WHISPER_BACKEND`: faster-whisper / mlx-whisper /
 openai-whisper; extras `native`, `mlx`), validates Claude's JSON with the web
 pipeline's own grounding and renders through `VideoService.create_single_clip`
-(no Postgres/Redis). Claude's side is the `/clip` and `/clip-edit` skills in
+(no Postgres/Redis); `edit-context`/`edit-apply` reuse the studio's
+`build_context`/`apply_plan`/`render_document` on run-folder drafts. Claude's side is the `/clip` and `/clip-edit` skills in
 `.claude/skills/`. Run folders: `runs/<name>/` (gitignored). Docs:
 `docs/claude-native/README.md`; plan/progress: `docs/claude-native/PLAN.md`.
 

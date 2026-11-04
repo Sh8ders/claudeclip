@@ -214,3 +214,46 @@ def test_full_native_run_without_ai_sdks_or_network(tmp_path):
     assert clips[0]["broll"] and clips[0]["broll"][0]["provider"] == "local"
     assert clips[0]["broll"][0]["local_path"].endswith("laptop-typing-desk.mp4")
     assert clips[1]["broll"] == []
+
+    # Phase 2: the studio's AI edit, with Claude writing the EditPlan.
+    result = _clipper(tmp_path, "edit-context", "demo", "1", "make the captions yellow and cut the first sentence")
+    assert result.returncode == 0, result.stderr
+    assert "You are the editing assistant inside SupoClip's clip editor" in result.stdout
+    assert "Request:\nmake the captions yellow and cut the first sentence" in result.stdout
+    word_lines = [line.split() for line in result.stdout.splitlines() if line.startswith("word-")]
+    second_sentence = next(float(parts[1]) for parts in word_lines if parts[-1] == "I")
+    ops = tmp_path / "ops.json"
+    ops.write_text(json.dumps({
+        "summary": "Made the captions yellow and cut the first sentence.",
+        "operations": [
+            {"type": "set", "setting": "captions.color", "value": "#FACC15"},
+            {"type": "cut_ranges", "ranges": [{"start": 0.0, "end": second_sentence}]},
+            {"type": "set", "setting": "captions.font", "value": "Comic Sans"},
+        ],
+    }))
+    result = _clipper(tmp_path, "edit-apply", "demo", "1", str(ops))
+    assert result.returncode == 0, result.stdout + result.stderr
+    outcome = json.loads(result.stdout)
+    assert outcome["changed"] and outcome["revision"] == 1
+    assert outcome["notes"] == ["Font 'Comic Sans' isn't available"]
+    draft = json.loads((run / "edits" / "clip_01" / "draft.json").read_text())
+    assert draft["document"]["captions"]["color"] == "#FACC15"
+    edited = run / outcome["file"]
+    probe = _probe(edited)
+    video = next(s for s in probe["streams"] if s["codec_type"] == "video")
+    assert (video["width"], video["height"]) == (1080, 1920)
+    assert float(probe["format"]["duration"]) == pytest.approx(outcome["length"], abs=0.15)
+    assert outcome["length"] < clips[0]["duration"] - 4
+    assert json.loads((run / "clips.json").read_text())["clips"][0]["edits"][0]["file"] == outcome["file"]
+
+    # Square output goes through the studio renderer.
+    result = _clipper(tmp_path, "render", "demo", "--format", "square", "--clips", "2")
+    assert result.returncode == 0, result.stdout + result.stderr
+    square = json.loads((run / "clips.json").read_text())["clips"][1]
+    probe = _probe(run / square["file"])
+    video = next(s for s in probe["streams"] if s["codec_type"] == "video")
+    assert (video["width"], video["height"]) == (1080, 1080)
+    assert _white_share(_frame(run / square["file"], 1.0), 0.66, 0.90) > 0.002, "captions not visible"
+
+    attempts = guard_report.read_text().split() if guard_report.exists() else []
+    assert attempts == [], f"Claude-native mode reached for an AI SDK or the network: {attempts}"
