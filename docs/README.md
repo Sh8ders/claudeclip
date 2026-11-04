@@ -2,6 +2,8 @@
 
 This directory is the canonical documentation hub for SupoClip.
 
+**Want to clip videos with Claude Code and no API keys?** Go straight to the [Claude-native guide](./claude-native/README.md): install, `/clip`, `/clip-edit`, options and troubleshooting.
+
 If you are new to the project, start here:
 
 1. Read [Setup](./setup.md) to get the app running.
@@ -12,6 +14,11 @@ If you are new to the project, start here:
 
 ## Documentation Map
 
+- [Claude Code mode](./claude-native/README.md)
+  - Install (macOS, Linux) and Claude Code setup
+  - `/clip` and `/clip-edit` usage and options
+  - Run folders, B-roll, Whisper model choice
+  - The `clipper` CLI, settings, troubleshooting, limitations
 - [Setup](./setup.md)
   - Docker-first installation
   - Local development commands
@@ -55,13 +62,20 @@ If you are new to the project, start here:
 
 SupoClip is an open-source AI video clipping application. It takes long-form videos, transcribes them, uses an LLM to select the most promising short segments, and renders vertical or source-aspect clips with subtitles and optional effects.
 
+It can also run without the web app: in **Claude-native mode**, Claude Code does the AI steps itself and the `clipper` CLI runs transcription and rendering locally.
+
 The current repository snapshot includes:
 
 - `frontend/`: the main Next.js application
-- `backend/`: the FastAPI API and ARQ worker code
+- `backend/`: the FastAPI API and ARQ worker code, plus the `clipper` CLI (`backend/src/native/`)
+- `.claude/skills/`: the `/clip` and `/clip-edit` Claude Code skills
 - Root-level infrastructure files such as `docker-compose.yml`, `init.sql`, `.env.example`, and `start.sh`
 
 ## Recommended Reading Paths
+
+For clipping with Claude Code (no Docker, no API keys):
+
+1. [Claude-native guide](./claude-native/README.md)
 
 For operators:
 

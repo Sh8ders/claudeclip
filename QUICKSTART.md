@@ -1,5 +1,12 @@
 # SupoClip Quick Start Guide
 
+> **No API keys? Use Claude Code instead.** Install ffmpeg and uv, run
+> `cd backend && uv sync --extra cpu --extra native` (add `--extra mlx` on
+> Apple Silicon), open `claude` in the repository root and type
+> `/clip <video-or-youtube-url>`. Full guide:
+> [docs/claude-native/README.md](docs/claude-native/README.md).
+> The rest of this page covers the Docker web app.
+
 Run SupoClip with Docker in just one command!
 
 ## Prerequisites

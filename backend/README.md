@@ -1,5 +1,10 @@
 # Backend Docs
 
+> **Claude-native mode:** this package also ships the `clipper` CLI
+> (`src/native/`), which the `/clip` and `/clip-edit` Claude Code skills drive.
+> Install with `uv sync --extra cpu --extra native` (add `--extra mlx` on Apple
+> Silicon) and see [docs/claude-native/README.md](../docs/claude-native/README.md).
+
 ## Requirements
 
 Ensure you have `ffmpeg` installed.
