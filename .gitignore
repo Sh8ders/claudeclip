@@ -25,3 +25,7 @@ docs/youtube-provider-registry*.json
 
 # Local agent checkouts
 .claude/worktrees/
+
+# Claude-native mode run folders (backend/src/native)
+runs/
+backend/runs/

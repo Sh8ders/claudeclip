@@ -30,6 +30,8 @@
 
 SupoClip is an open-source, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Run it yourself, customize it, inspect it — or use the hosted version and skip the setup.
 
+> **New: clip with Claude Code, no API keys.** Run `/clip ~/Movies/talk.mp4` inside [Claude Code](https://code.claude.com/docs) and Claude itself picks, scores and titles the clips, while transcription (local Whisper) and rendering run on your machine. No AssemblyAI or LLM keys, no Docker. [Jump to the Claude Code quick start ↓](#option-a-claude-code-no-api-keys)
+
 **See it first:** [watch real clips SupoClip generated](https://www.supoclip.com/demo) from a long-form interview, or follow the [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) to run it on your own machine.
 
 ## Ways to Use SupoClip
@@ -39,6 +41,7 @@ SupoClip is an open-source, AI-powered video clipping tool. Give it a long video
 | **Hosted web app** | [www.supoclip.com](https://www.supoclip.com) — no infrastructure to run |
 | **iOS app** | [SupoClip on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040) — the same hosted pipeline, from your iPhone |
 | **Self-host** | Docker Compose setup below, or the step-by-step [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) — AGPL-3.0, unlimited usage on your own hardware |
+| **Claude Code (no API keys)** | `/clip <video-or-youtube-url>` and `/clip-edit` inside Claude Code: Claude does the AI work, your machine does the rest. See the [Claude-native guide](docs/claude-native/README.md) |
 | **MCP server** | [`mcp/`](mcp/) — use SupoClip from Claude, Cursor, and other MCP clients |
 | **REST API** | API keys from `/settings/api-keys` authenticate the backend directly — see the [API reference](docs/api-reference.md) |
 
@@ -58,6 +61,7 @@ SupoClip gives you the same core pipeline without the leash:
 - **YouTube, Twitch, Kick & uploads** — paste a YouTube video, a Twitch VOD or clip, or a Kick VOD or clip, or upload your own file (live streams are not supported). Twitch and Kick download providers and the optional Apify fallbacks are set in [docs/configuration.md](docs/configuration.md#twitch-and-kick-imports)
 
 - **AI clip selection** — an LLM (Gemini, GPT, Claude, or a local Ollama model) picks the 3–7 most clip-worthy segments from the transcript
+- **Claude Code mode** — skip the API keys entirely: Claude Code picks the clips, ranks them, plans B-roll, writes social captions and edits clips on request, with local Whisper transcription ([guide](docs/claude-native/README.md))
 - **Virality scoring** — every clip gets hook, engagement, value, and shareability scores
 - **Smart vertical cropping** — face detection keeps the speaker centered in the 9:16 frame
 - **Word-synced subtitles** — AssemblyAI word-level timestamps, custom fonts, caption templates with animation styles
@@ -70,11 +74,53 @@ SupoClip gives you the same core pipeline without the leash:
 
 ## Quick Start
 
+There are two ways to run SupoClip yourself:
+
+| | **A. Claude Code** | **B. Web app (Docker)** |
+|---|---|---|
+| Best for | Clipping your own videos from the terminal | Running the full web app for yourself or a team |
+| AI | Claude Code, in your session | An LLM API key (Gemini, GPT, Claude) or Ollama |
+| Transcription | Local Whisper | AssemblyAI (or Whisper) |
+| Needs | Claude Code, ffmpeg, uv | Docker, API keys |
+
+### Option A: Claude Code (no API keys)
+
+**1. Install** (macOS; Linux uses `apt-get install ffmpeg` and the [uv installer](https://docs.astral.sh/uv/)):
+
+```bash
+brew install ffmpeg-full uv   # ffmpeg-full: plain ffmpeg can't burn in captions
+git clone https://github.com/Sh8ders/claudeclip.git
+cd claudeclip/backend
+uv sync --extra cpu --extra native --extra mlx   # Intel Mac / Linux: leave out --extra mlx
+cd ..
+```
+
+**2. Open [Claude Code](https://code.claude.com/docs) in the repository root** and clip a video:
+
+```bash
+claude
+```
+
+```
+/clip ~/Movies/interview.mp4
+/clip https://www.youtube.com/watch?v=VIDEO_ID --clip-length short --template hormozi
+```
+
+**3. Find your clips** in `runs/<name>/clips/`. Next to them, `posts.md` has a social caption for each clip and `clips.json` has scores and hook titles. To change a clip, describe the edit:
+
+```
+/clip-edit interview 2 "cut the filler words and make the captions yellow"
+```
+
+The first run downloads a Whisper model (a few hundred MB). Full guide with all options, B-roll, Whisper models and troubleshooting: **[docs/claude-native/README.md](docs/claude-native/README.md)**.
+
+### Option B: Web app with Docker
+
 You need Docker, an [AssemblyAI](https://www.assemblyai.com/) API key for transcription, and one LLM provider key (Google, OpenAI, Anthropic, or a local Ollama).
 
 ```bash
-git clone https://github.com/FujiwaraChoki/supoclip.git
-cd supoclip
+git clone https://github.com/Sh8ders/claudeclip.git
+cd claudeclip
 ```
 
 Create a `.env` in the root with your keys:
@@ -103,6 +149,7 @@ Everything beyond this page lives in [`docs/`](docs/README.md):
 
 | Guide | What it covers |
 |---|---|
+| [Claude Code mode](docs/claude-native/README.md) | `/clip` and `/clip-edit` in Claude Code: install, options, B-roll, Whisper models, the `clipper` CLI |
 | [Setup](docs/setup.md) | Docker-first install, local development, first-run checklist |
 | [Configuration](docs/configuration.md) | Every environment variable, operating modes, provider options |
 | [App Guide](docs/app-guide.md) | Screens, workflows, admin features, hosted vs self-host |
@@ -117,6 +164,12 @@ The stack runs locally without Docker too — see [development](docs/development
 
 ```bash
 make test
+```
+
+Claude Code mode has its own tests (`backend/tests/unit/test_native_*.py`). `test_native_purity.py` renders a synthetic video end to end with every AI SDK and all internet access blocked:
+
+```bash
+cd backend && uv run --no-sync pytest tests/unit -q -k native
 ```
 
 ## License

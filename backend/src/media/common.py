@@ -26,7 +26,34 @@ import time
 
 import cv2
 
-import assemblyai as aai
+import importlib
+
+import types
+
+
+class _LazyModule(types.ModuleType):
+    """Import a heavy optional SDK on first attribute access.
+
+    AssemblyAI is only needed when that provider actually transcribes, so
+    local-only paths (Whisper, Claude-native mode, rendering) never load it.
+    """
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self._module = None
+
+    def _load(self):
+        if self._module is None:
+            self._module = importlib.import_module(self.__name__)
+        return self._module
+
+    def __getattr__(self, attribute: str):
+        if attribute.startswith("__") and attribute.endswith("__"):
+            raise AttributeError(attribute)
+        return getattr(self._load(), attribute)
+
+
+aai = _LazyModule("assemblyai")
 
 import httpx
 

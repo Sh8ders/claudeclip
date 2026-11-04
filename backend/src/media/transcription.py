@@ -5,7 +5,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from pathlib import Path
-import assemblyai as aai
 from ..config import get_config
 import httpx
 import json
@@ -23,6 +22,7 @@ from .common import (
     _WHISPER_AVAILABLE,
     _WHISPER_MODEL_CACHE,
     _whisper,
+    aai,
     logger,
 )
 from .ffmpeg import (
@@ -174,6 +174,66 @@ def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
     return ["universal-3-5-pro", "universal-2"]
 
 
+WHISPER_BACKENDS = ("openai", "faster", "mlx", "auto")
+
+# Short Whisper names mapped onto the MLX community conversions.
+MLX_WHISPER_REPOS = {
+    "tiny": "mlx-community/whisper-tiny-mlx",
+    "tiny.en": "mlx-community/whisper-tiny.en-mlx",
+    "base": "mlx-community/whisper-base-mlx",
+    "base.en": "mlx-community/whisper-base.en-mlx",
+    "small": "mlx-community/whisper-small-mlx",
+    "small.en": "mlx-community/whisper-small.en-mlx",
+    "medium": "mlx-community/whisper-medium-mlx",
+    "medium.en": "mlx-community/whisper-medium.en-mlx",
+    "large": "mlx-community/whisper-large-v3-mlx",
+    "large-v3": "mlx-community/whisper-large-v3-mlx",
+    "turbo": "mlx-community/whisper-large-v3-turbo",
+    "large-v3-turbo": "mlx-community/whisper-large-v3-turbo",
+}
+
+
+def _module_available(name: str) -> bool:
+    import importlib.util
+
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _is_apple_silicon() -> bool:
+    import platform
+    import sys
+
+    return sys.platform == "darwin" and platform.machine() == "arm64"
+
+
+def resolve_whisper_backend(requested: Optional[str] = None) -> str:
+    """Pick the local Whisper implementation.
+
+    ``openai`` (the default) is openai-whisper, as before. ``faster`` uses
+    faster-whisper (CTranslate2, much faster on CPU), ``mlx`` uses mlx-whisper
+    on Apple Silicon. ``auto`` prefers mlx, then faster-whisper, then openai.
+    """
+    backend = (requested or "openai").strip().lower()
+    if backend in {"faster-whisper", "faster_whisper"}:
+        backend = "faster"
+    if backend in {"mlx-whisper", "mlx_whisper"}:
+        backend = "mlx"
+    if backend not in WHISPER_BACKENDS:
+        raise ValueError(
+            f"Unknown Whisper backend {requested!r}; use one of {', '.join(WHISPER_BACKENDS)}"
+        )
+    if backend != "auto":
+        return backend
+    if _is_apple_silicon() and _module_available("mlx_whisper"):
+        return "mlx"
+    if _module_available("faster_whisper"):
+        return "faster"
+    return "openai"
+
+
 def _get_whisper_model(model_name: str = "base"):
     """Load and cache a Whisper model by name."""
     if not _WHISPER_AVAILABLE:
@@ -186,22 +246,114 @@ def _get_whisper_model(model_name: str = "base"):
     return _WHISPER_MODEL_CACHE[model_name]
 
 
+def _get_faster_whisper_model(model_name: str):
+    """Load and cache a faster-whisper model (int8 by default: fast on laptop CPUs)."""
+    import os
+
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as error:
+        raise RuntimeError(
+            "faster-whisper is not installed. Install it with: uv sync --extra native"
+        ) from error
+    compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+    key = f"faster:{model_name}:{compute_type}"
+    if key not in _WHISPER_MODEL_CACHE:
+        logger.info("Loading faster-whisper model: %s (%s)", model_name, compute_type)
+        _WHISPER_MODEL_CACHE[key] = WhisperModel(model_name, device="auto", compute_type=compute_type)
+    return _WHISPER_MODEL_CACHE[key]
+
+
+def _faster_whisper_result(segments, info) -> Dict[str, Any]:
+    """Convert faster-whisper output to openai-whisper's result dict."""
+    result_segments: List[Dict[str, Any]] = []
+    for segment in segments:
+        result_segments.append(
+            {
+                "start": float(segment.start),
+                "end": float(segment.end),
+                "text": segment.text,
+                "words": [
+                    {
+                        "word": word.word,
+                        "start": float(word.start),
+                        "end": float(word.end),
+                        "probability": float(word.probability),
+                    }
+                    for word in (segment.words or [])
+                ],
+            }
+        )
+    return {
+        "text": "".join(segment["text"] for segment in result_segments),
+        "segments": result_segments,
+        "language": getattr(info, "language", None),
+    }
+
+
+def _transcribe_with_faster_whisper(
+    audio_path: Path, model_name: str, language: Optional[str]
+) -> Dict[str, Any]:
+    model = _get_faster_whisper_model(model_name)
+    segments, info = model.transcribe(
+        str(audio_path), word_timestamps=True, language=language
+    )
+    # ``segments`` is a lazy generator: decoding happens while it is consumed.
+    return _faster_whisper_result(list(segments), info)
+
+
+def _transcribe_with_mlx_whisper(
+    audio_path: Path, model_name: str, language: Optional[str]
+) -> Dict[str, Any]:
+    try:
+        import mlx_whisper
+    except ImportError as error:
+        raise RuntimeError(
+            "mlx-whisper is not installed. Install it with: uv sync --extra mlx (Apple Silicon only)"
+        ) from error
+    repo = MLX_WHISPER_REPOS.get(model_name, model_name)
+    result = mlx_whisper.transcribe(
+        str(audio_path), path_or_hf_repo=repo, word_timestamps=True, language=language
+    )
+    # Timings may be NumPy scalars; the cache writer expects plain floats.
+    for segment in result.get("segments") or []:
+        for key in ("start", "end"):
+            if key in segment:
+                segment[key] = float(segment[key])
+        for word in segment.get("words") or []:
+            for key in ("start", "end", "probability"):
+                if key in word:
+                    word[key] = float(word[key])
+    return result
+
+
 def transcribe_with_whisper(
-    video_path: Path, model_name: str = "base", language: Optional[str] = None
+    video_path: Path,
+    model_name: str = "base",
+    language: Optional[str] = None,
+    backend: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Transcribe video using local Whisper with word-level timestamps.
 
     ``language`` None lets Whisper detect it; AssemblyAI-style codes such as
-    ``en_us`` are reduced to the ISO 639-1 base Whisper expects.
+    ``en_us`` are reduced to the ISO 639-1 base Whisper expects. ``backend``
+    selects openai-whisper (default), faster-whisper, mlx-whisper or ``auto``;
+    every backend returns openai-whisper's result shape.
     """
     audio_path = _prepare_audio_for_transcription(video_path)
-    model = _get_whisper_model(model_name)
     whisper_language = language.split("_", 1)[0] if language else None
+    resolved = resolve_whisper_backend(backend)
     logger.info(
-        "Starting Whisper transcription with model: %s (language: %s)",
+        "Starting Whisper transcription with model: %s (backend: %s, language: %s)",
         model_name,
+        resolved,
         whisper_language or "auto",
     )
+    if resolved == "faster":
+        return _transcribe_with_faster_whisper(audio_path, model_name, whisper_language)
+    if resolved == "mlx":
+        return _transcribe_with_mlx_whisper(audio_path, model_name, whisper_language)
+    model = _get_whisper_model(model_name)
     return model.transcribe(str(audio_path), word_timestamps=True, language=whisper_language)
 
 
@@ -419,7 +571,10 @@ def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
     model_name = runtime_config.whisper_model
     logger.info("Starting Whisper transcription with model: %s", model_name)
     whisper_result = transcribe_with_whisper(
-        video_path, model_name, runtime_config.transcription_language or None
+        video_path,
+        model_name,
+        runtime_config.transcription_language or None,
+        getattr(runtime_config, "whisper_backend", None),
     )
 
     formatted_lines = format_transcript_for_analysis(whisper_result)

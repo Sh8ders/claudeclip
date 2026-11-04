@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-04
+
+- **New:** Claude-native mode: clip a video file or YouTube URL from Claude Code with `/clip`. Claude picks, ranks and titles the clips, plans B-roll and writes social captions, while transcription (local Whisper) and rendering run on your machine. No AI API keys are needed. ([#1](https://github.com/Sh8ders/claudeclip/pull/1))
+
 ## 2026-11-03
 
 - **Fixed:** YouTube videos blocked in the downloader's region can retry from a supported region while keeping saved transcripts and other download options available. Generation and editing explain any remaining regional restriction and suggest uploading the file or choosing another source. ([#332](https://github.com/FujiwaraChoki/supoclip/pull/332))

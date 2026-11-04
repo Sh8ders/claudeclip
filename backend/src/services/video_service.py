@@ -62,7 +62,7 @@ from ..clip_source_map import (
     save_clip_source_ranges,
     source_range_bounds,
 )
-from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
+from ..clip_selection import max_final_clips_for_duration
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
 from ..config import get_config
@@ -98,6 +98,15 @@ from ..stream_source import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def get_most_relevant_parts_by_transcript(*args, **kwargs):
+    """Run model-based clip selection; the AI SDKs load only when it is used."""
+    from ..ai import get_most_relevant_parts_by_transcript as analyse
+
+    return await analyse(*args, **kwargs)
+
+
 UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
 
@@ -714,6 +723,63 @@ class VideoService:
         return clips_info
 
     @staticmethod
+    def resolve_clip_keep_ranges(
+        video_path: Path,
+        segment: Dict[str, Any],
+        cleanup_settings: Optional[Dict[str, Any]] = None,
+        max_clip_seconds: float = 60.0,
+    ) -> Optional[Dict[str, Any]]:
+        """The source ranges a segment renders from, exactly as ``create_single_clip`` cuts them.
+
+        Returns ``start_seconds``/``end_seconds`` (the segment bounds),
+        ``keep_ranges`` and the spoken ``text`` of those ranges, or None when
+        the segment has no positive duration.
+        """
+        provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
+        source_ranges = normalize_source_ranges(segment.get("source_ranges"))
+        provided_bounds = source_range_bounds(provided_keep_ranges or source_ranges)
+        if provided_bounds:
+            start_seconds, end_seconds = provided_bounds
+        else:
+            start_seconds = parse_timestamp_to_seconds(segment["start_time"])
+            end_seconds = parse_timestamp_to_seconds(segment["end_time"])
+        if end_seconds - start_seconds <= 0:
+            return None
+        if provided_keep_ranges:
+            keep_ranges = provided_keep_ranges
+        elif source_ranges:
+            keep_ranges = build_keep_ranges_from_source_ranges(
+                video_path,
+                source_ranges,
+                cleanup_settings,
+            )
+        else:
+            start_seconds = snap_clip_start_to_sentence(
+                video_path, start_seconds, end_seconds
+            )
+            keep_ranges = build_clip_keep_ranges(
+                video_path,
+                start_seconds,
+                end_seconds,
+                cleanup_settings,
+            )
+        keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
+        clip_text = segment.get("text", "")
+        if not provided_keep_ranges and not source_ranges:
+            keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
+        keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
+        if not provided_keep_ranges and not source_ranges:
+            # Snapping, cleanup, the teaser and the cap change what is
+            # spoken; keep the stored text word-for-word with the timeline.
+            clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+        return {
+            "start_seconds": start_seconds,
+            "end_seconds": end_seconds,
+            "keep_ranges": keep_ranges,
+            "text": clip_text,
+        }
+
+    @staticmethod
     async def create_single_clip(
         video_path: Path,
         segment: Dict[str, Any],
@@ -730,29 +796,29 @@ class VideoService:
         max_clip_seconds: float = 60.0,
         include_broll: bool = False,
         broll_session: Optional[BRollSession] = None,
+        broll_planner: Optional[
+            Callable[[List[tuple]], Awaitable[List[Dict[str, Any]]]]
+        ] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure.
 
         ``max_short_side`` downscales the finished clip for plans below 1080p.
         ``include_broll`` adds stock cutaways; ``broll_session`` keeps one
-        task's clips from reusing the same footage.
+        task's clips from reusing the same footage. ``broll_planner`` replaces
+        the model-based B-roll plan: it receives the clip's keep ranges and
+        returns placements (Claude-native mode supplies its own cues).
         """
         try:
-            provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
-            source_ranges = normalize_source_ranges(segment.get("source_ranges"))
-            provided_bounds = source_range_bounds(provided_keep_ranges or source_ranges)
-            if provided_bounds:
-                start_seconds, end_seconds = provided_bounds
-            else:
-                start_seconds = parse_timestamp_to_seconds(segment["start_time"])
-                end_seconds = parse_timestamp_to_seconds(segment["end_time"])
-            duration = end_seconds - start_seconds
-
-            if duration <= 0:
-                logger.warning(
-                    f"Skipping clip {clip_index + 1}: invalid duration {duration:.1f}s"
-                )
+            resolved = VideoService.resolve_clip_keep_ranges(
+                video_path, segment, cleanup_settings, max_clip_seconds
+            )
+            if resolved is None:
+                logger.warning(f"Skipping clip {clip_index + 1}: invalid duration")
                 return None
+            start_seconds = resolved["start_seconds"]
+            end_seconds = resolved["end_seconds"]
+            keep_ranges = resolved["keep_ranges"]
+            clip_text = resolved["text"]
 
             unique_suffix = uuid.uuid4().hex[:12]
             clip_filename = (
@@ -762,36 +828,11 @@ class VideoService:
                 f"{unique_suffix}.mp4"
             )
             clip_path = output_dir / clip_filename
-            if provided_keep_ranges:
-                keep_ranges = provided_keep_ranges
-            elif source_ranges:
-                keep_ranges = build_keep_ranges_from_source_ranges(
-                    video_path,
-                    source_ranges,
-                    cleanup_settings,
-                )
-            else:
-                start_seconds = snap_clip_start_to_sentence(
-                    video_path, start_seconds, end_seconds
-                )
-                keep_ranges = build_clip_keep_ranges(
-                    video_path,
-                    start_seconds,
-                    end_seconds,
-                    cleanup_settings,
-                )
-            keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
-            clip_text = segment.get("text", "")
-            if not provided_keep_ranges and not source_ranges:
-                keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
-            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
-            if not provided_keep_ranges and not source_ranges:
-                # Snapping, cleanup, the teaser and the cap change what is
-                # spoken; keep the stored text word-for-word with the timeline.
-                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             broll_placements: List[Dict[str, Any]] = []
-            if include_broll:
+            if include_broll and broll_planner is not None:
+                broll_placements = await broll_planner(keep_ranges)
+            elif include_broll:
                 broll_placements = await VideoService.plan_broll(
                     video_path, keep_ranges, output_format, max_short_side, broll_session
                 )

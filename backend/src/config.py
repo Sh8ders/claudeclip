@@ -23,6 +23,8 @@ class Config:
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
         self.whisper_model = os.getenv("WHISPER_MODEL") or os.getenv("WHISPER_MODEL_SIZE", "base")
+        # openai (openai-whisper, default) | faster (faster-whisper) | mlx | auto
+        self.whisper_backend = (os.getenv("WHISPER_BACKEND") or "openai").strip().lower()
         self.transcription_provider = self._normalize_transcription_provider(
             os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
         )

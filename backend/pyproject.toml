@@ -19,7 +19,9 @@ dependencies = [
     "bgutil-ytdlp-pot-provider==2.0.2",
     "whisper>=1.1.10",
     "greenlet>=2.0.0",
-    "opencv-python>=4.8.0",
+    # OpenCV 5 drops CascadeClassifier; clip framing then fails and every clip
+    # falls back to the full frame. Keep 4.x until the face pipeline is ported.
+    "opencv-python>=4.8.0,<5",
     "srt-equalizer>=0.1.10",
     "assemblyai>=0.35.0",
     "srt>=3.5.3",
@@ -37,6 +39,13 @@ dependencies = [
 [project.optional-dependencies]
 cpu = ["torch==2.11.0"]
 cuda = ["torch==2.11.0"]
+# Claude-native mode (`clipper`): faster local Whisper on CPU.
+native = ["faster-whisper>=1.2.1"]
+# Claude-native mode on Apple Silicon: Whisper on the GPU through MLX.
+mlx = ["mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[project.scripts]
+clipper = "clipper_entry:main"
 
 [dependency-groups]
 dev = [
