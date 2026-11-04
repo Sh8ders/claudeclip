@@ -62,7 +62,7 @@ from ..clip_source_map import (
     save_clip_source_ranges,
     source_range_bounds,
 )
-from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
+from ..clip_selection import max_final_clips_for_duration
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
 from ..config import get_config
@@ -98,6 +98,15 @@ from ..stream_source import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def get_most_relevant_parts_by_transcript(*args, **kwargs):
+    """Run model-based clip selection; the AI SDKs load only when it is used."""
+    from ..ai import get_most_relevant_parts_by_transcript as analyse
+
+    return await analyse(*args, **kwargs)
+
+
 UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
 

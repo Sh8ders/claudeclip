@@ -5,7 +5,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from pathlib import Path
-import assemblyai as aai
 from ..config import get_config
 import httpx
 import json
@@ -23,6 +22,7 @@ from .common import (
     _WHISPER_AVAILABLE,
     _WHISPER_MODEL_CACHE,
     _whisper,
+    aai,
     logger,
 )
 from .ffmpeg import (
