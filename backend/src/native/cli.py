@@ -128,6 +128,17 @@ def run_command(args: argparse.Namespace) -> int:
     runs_dir = (args.runs_dir or default_runs_dir()).expanduser().resolve()
     configure_environment(runs_dir)
 
+    if args.command not in {"schema", "list"}:
+        from .ffmpeg_check import MISSING_FILTER_HELP, ensure_caption_ffmpeg
+
+        # Every render burns captions and the hook title with libass; fail
+        # before any work instead of once per clip.
+        renders = args.command == "render" or (
+            args.command == "edit-apply" and not getattr(args, "no_render", False)
+        )
+        if not ensure_caption_ffmpeg() and renders:
+            raise RuntimeError(MISSING_FILTER_HELP)
+
     if args.command == "schema":
         from .schemas import SCHEMA_NOTES, render_schema
 

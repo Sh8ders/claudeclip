@@ -401,6 +401,9 @@ pipeline's own grounding and renders through `VideoService.create_single_clip`
 - **Prompts** live in `backend/src/prompts/*.md` and are loaded by `ai.py`,
   `ai_edit_service.py` and `social_caption_service.py`; `test_prompt_files.py`
   pins their text. Edit the `.md`, not a Python string.
+- **ffmpeg:** captions and hook titles need libass (`subtitles` filter). Homebrew's
+  `ffmpeg` lacks it; `native/ffmpeg_check.py` puts keg-only `ffmpeg-full` (or
+  `CLIPPER_FFMPEG_DIR`) first on PATH, and `render`/`edit-apply` stop early without one.
 - **Import hygiene:** pure selection logic (output models, prompt builders,
   `_validate_segments`, dedupe, rerank application) is in `src/clip_selection.py`
   and re-exported by `ai.py`. `assemblyai` is imported lazily (`media/common.py`)

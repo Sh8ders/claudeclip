@@ -51,8 +51,10 @@ not required.
 ### macOS
 
 ```bash
-# 1. Tools
-brew install ffmpeg uv git
+# 1. Tools. Use ffmpeg-full, not ffmpeg: Homebrew's plain ffmpeg is built
+#    without libass, so it can't burn in captions (clipper finds ffmpeg-full
+#    on its own; you don't need to change PATH).
+brew install ffmpeg-full uv git
 
 # 2. This repository
 git clone https://github.com/Sh8ders/claudeclip.git
@@ -400,6 +402,7 @@ All of these are optional.
 | `WHISPER_COMPUTE_TYPE` | `int8` | faster-whisper precision (`int8`, `float16`, `float32`) |
 | `CLIPPER_RUNS_DIR` | `<repo>/runs` | Where run folders go |
 | `CLIPPER_BROLL_DIR` | `<repo>/broll` | Local B-roll library |
+| `CLIPPER_FFMPEG_DIR` | unset | Folder holding an ffmpeg with libass, if not Homebrew's `ffmpeg-full` |
 | `PEXELS_API_KEY` | unset | Stock B-roll from Pexels |
 | `MAX_CLIPS` | `10` | Upper limit on clips per video |
 | `TEMP_DIR` | `runs/.cache` | YouTube download and B-roll cache |
@@ -417,7 +420,8 @@ you run `/clip`.
 |---|---|
 | `/clip` doesn't appear in Claude Code | Start `claude` from the repository root (the folder that has `.claude/`), not from `backend/` |
 | `clipper: command not found` / `.venv/bin/clipper` missing | Run `cd backend && uv sync --extra cpu --extra native` again |
-| `ffmpeg: not found` | `brew install ffmpeg` (macOS) or `sudo apt-get install ffmpeg` |
+| `ffmpeg: not found` | `brew install ffmpeg-full` (macOS) or `sudo apt-get install ffmpeg` |
+| "Your ffmpeg can't draw captions" or `No such filter: 'subtitles'` | Homebrew's plain `ffmpeg` has no libass. Run `brew install ffmpeg-full`; `clipper` uses it automatically. Elsewhere, install an ffmpeg built with libass or set `CLIPPER_FFMPEG_DIR` to its folder |
 | "Whisper is not installed" / torch errors | Re-run `uv sync` with `--extra cpu --extra native` (and `--extra mlx` on Apple Silicon) |
 | First run is very slow | The Whisper model is downloading. Later runs reuse it. For speed, try `--whisper-model base`, or `turbo` on Apple Silicon. |
 | YouTube download fails | Update yt-dlp (`cd backend && uv lock --upgrade-package yt-dlp && uv sync --extra cpu --extra native`), or download the video yourself and pass the file |

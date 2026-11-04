@@ -88,7 +88,7 @@ There are two ways to run SupoClip yourself:
 **1. Install** (macOS; Linux uses `apt-get install ffmpeg` and the [uv installer](https://docs.astral.sh/uv/)):
 
 ```bash
-brew install ffmpeg uv
+brew install ffmpeg-full uv   # ffmpeg-full: plain ffmpeg can't burn in captions
 git clone https://github.com/Sh8ders/claudeclip.git
 cd claudeclip/backend
 uv sync --extra cpu --extra native --extra mlx   # Intel Mac / Linux: leave out --extra mlx

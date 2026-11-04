@@ -28,7 +28,8 @@ live in `runs/<run>/` at the repository root.
 
 If `backend/.venv/bin/clipper` is missing, run in `backend/`:
 `uv sync --extra cpu --extra native` (Apple Silicon: add `--extra mlx`).
-`ffmpeg` must be on PATH (`brew install ffmpeg`). Stop and tell the user if
+`ffmpeg` must be installed; on a Mac use `brew install ffmpeg-full` (Homebrew's
+plain `ffmpeg` can't burn in captions; `clipper` picks up `ffmpeg-full` itself). Stop and tell the user if
 either step fails; see `docs/claude-native/README.md`.
 
 ## 1. Prepare

@@ -10,8 +10,8 @@
 Ensure you have `ffmpeg` installed.
 
 ```
-# MacOS
-brew install ffmpeg
+# MacOS (ffmpeg-full: the plain ffmpeg formula has no libass, which captions need)
+brew install ffmpeg-full
 
 # Linux (Ubuntu)
 sudo apt update -y && sudo apt install install ffmpeg -y
